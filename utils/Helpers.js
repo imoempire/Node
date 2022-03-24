@@ -8,3 +8,10 @@ exports.createRandomBytes = () =>
        resolve(token)
     });
   });
+
+exports.sendError = (res, error , status=401)=>{
+  res.status(status).json({
+    success: false,
+    error
+  })
+}

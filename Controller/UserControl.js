@@ -10,7 +10,7 @@ const {
 const VerificationModel = require("../Model/Verification");
 const { isValidObjectId } = require("mongoose");
 const resetTokenModel = require("../Model/resetToken");
-const { createRandomBytes } = require("../utils/Helpers");
+const { createRandomBytes, sendError } = require("../utils/Helpers");
 exports.createUser = async (req, res) => {
   const { name, email, password } = req.body;
   const User = await UserModel.findOne({ email });
@@ -45,40 +45,40 @@ exports.createUser = async (req, res) => {
   res.json({success: true,  user: {
     name: newUser.name,
     email: newUser.email,
-    id: newUser.user_id,
+    id: newUser._id,
     verified: newUser.verified
   },});
 };
 
 exports.signIn = async (req, res) => {
-  const { email, password } = req.body;
-  if (!email.trim() || !password.trim()) 
-    res.status(400).json({
-      success: false,  
-      error: "email & password required",
-    }); 
-  // User
-  const user = await UserModel.findOne({ email });
-  if (!user) res.status(400).json({ success: false, error: "User not found" });
-  // Compare
-  const isMatched = await user.comparePassword(password);
-  if (!isMatched)
-    res
-      .status(400)
-      .json({ success: false, errror: "Email/Password do not match" });
-
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
-  });
-  res.status(200).json({
-    success: true,
-    user: {
-      name: user.name,
-      email: user.email,
-      id: user.user_id,
-      token: token,
-    },
-  });
+  try {
+    
+    const { email, password } = req.body;
+    if (!email.trim() || !password.trim()) 
+     return sendError(res, "email/password missing")
+    // User
+    const user = await UserModel.findOne({ email });
+    if (!user) return sendError(res, "User not found");
+    // Compare
+    const isMatched = await user.comparePassword(password);
+    if (!isMatched)
+    return sendError(res, "email/password does not match");
+  
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+    res.status(200).json({
+      success: true,
+      user: {
+        name: user.name,
+        email: user.email,  
+        id: user.user_id,
+        token: token, 
+      },
+    });
+  } catch (error) {
+    sendError(res, error.message, 500)
+  }
 }; 
 
 exports.verifyEmail = async (req, res) => {
@@ -133,12 +133,13 @@ exports.verifyEmail = async (req, res) => {
     ),
   });
   res.json({
+    success: false,
     message: "Email Verified Successfuly",
     user: {
       name: user.name,
       email: user.email,
+      verified: user.verified,
       id: user.user_id,
-      token: token,
     },
   });
 };
@@ -179,7 +180,7 @@ exports.forgetPassword = async (req, res) => {
   });
   res.json({
     success: true,
-    error: "Password Reset Link sent to your email",
+    message: "Password Reset Link sent to your email",
   });
 };
 
